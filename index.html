@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockMaster Pro - Multi-Store</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel para JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        
+        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; background: #eff6ff; }
+        .tab-inactive { color: #64748b; border-bottom: 2px solid transparent; }
+        .tab-inactive:hover { color: #1e293b; background: #f8fafc; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- Datos Iniciales ---
+        const INITIAL_DATA = [
+            { id: 1, sku: 'LAP-001', name: 'Laptop Gamer X1', family: 'Electrónica', distributor: 'TechWorld', cost: 800, price: 1200, stock: { 'Casa Central': 10 } },
+        ];
+
+        const INITIAL_BRANCHES = ['Casa Central'];
+
+        // --- Iconos ---
+        const Icon = ({ name, size = 18, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+        };
+
+        // --- Toast ---
+        const Toast = ({ message, type, onClose }) => {
+            useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, []);
+            const colors = type === 'success' ? 'bg-green-600' : 'bg-red-500';
+            return (
+                <div className={`fixed bottom-4 right-4 ${colors} text-white px-6 py-3 rounded-lg shadow-lg fade-in z-50 flex items-center gap-2`}>
+                    <Icon name={type === 'success' ? 'check-circle' : 'alert-circle'} />
+                    {message}
+                </div>
+            );
+        };
+
+        // --- Modal Nuevo Branch ---
+        const NewBranchModal = ({ isOpen, onClose, onConfirm }) => {
+            const [name, setName] = useState('');
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in">
+                    <div className="bg-white rounded-xl p-6 w-96 shadow-2xl">
+                        <h3 className="text-lg font-bold mb-4">Nueva Sucursal</h3>
+                        <input 
+                            autoFocus
+                            type="text" 
+                            placeholder="Nombre (ej: Sucursal Norte)" 
+                            className="w-full border rounded-lg p-2 mb-4 outline-none focus:ring-2 focus:ring-blue-500"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button onClick={onClose} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg">Cancelar</button>
+                            <button onClick={() => { if(name) onConfirm(name); setName(''); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Crear</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- App Principal ---
+        const App = () => {
+            // Estados
+            const [activeView, setActiveView] = useState('inventory'); // inventory, transfer, history
+            const [currentBranch, setCurrentBranch] = useState('Casa Central');
+            const [showBranchModal, setShowBranchModal] = useState(false);
+            const [showAllProducts, setShowAllProducts] = useState(false); // Toggle para ver productos sin stock en la sucursal actual
+
+            // Datos Persistentes
+            const [branches, setBranches] = useState(() => JSON.parse(localStorage.getItem('sm_branches')) || INITIAL_BRANCHES);
+            const [inventory, setInventory] = useState(() => JSON.parse(localStorage.getItem('sm_data')) || INITIAL_DATA);
+            const [history, setHistory] = useState(() => JSON.parse(localStorage.getItem('sm_history')) || []);
+
+            // Filtros UI
+            const [searchTerm, setSearchTerm] = useState('');
+            const [notification, setNotification] = useState(null);
+            
+            // Cola Transferencias
+            const [transferQueue, setTransferQueue] = useState([]);
+            const [transferForm, setTransferForm] = useState({ productId: '', toBranch: '', quantity: 1 });
+
+            // Referencias
+            const fileInputRef = useRef(null);
+
+            // Persistencia
+            useEffect(() => { localStorage.setItem('sm_data', JSON.stringify(inventory)); }, [inventory]);
+            useEffect(() => { localStorage.setItem('sm_branches', JSON.stringify(branches)); }, [branches]);
+            useEffect(() => { localStorage.setItem('sm_history', JSON.stringify(history)); }, [history]);
+
+            // Helpers
+            const showToast = (msg, type = 'success') => setNotification({ message: msg, type });
+
+            // --- Lógica de Sucursales ---
+            const handleAddBranch = (name) => {
+                if (branches.includes(name)) {
+                    showToast("Esa sucursal ya existe", "error");
+                    return;
+                }
+                setBranches([...branches, name]);
+                setCurrentBranch(name);
+                setShowBranchModal(false);
+                showToast(`Sucursal "${name}" creada`);
+            };
+
+            const handleDeleteBranch = (name) => {
+                if (branches.length <= 1) return showToast("Debe existir al menos una sucursal", "error");
+                if (!confirm(`¿Estás seguro de eliminar "${name}" y todo su stock? Esta acción no se puede deshacer.`)) return;
+                
+                const newBranches = branches.filter(b => b !== name);
+                setBranches(newBranches);
+                if (currentBranch === name) setCurrentBranch(newBranches[0]);
+
+                // Eliminar stock de esa sucursal en el inventario
+                setInventory(prev => prev.map(item => {
+                    const newStock = { ...item.stock };
+                    delete newStock[name];
+                    return { ...item, stock: newStock };
+                }));
+                showToast(`Sucursal "${name}" eliminada`);
+            };
+
+            // --- Importación (Lógica Clave) ---
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const csvData = event.target.result;
+                        const lines = csvData.split('\n').map(line => line.trim()).filter(line => line);
+                        if (lines.length < 2) throw new Error("Archivo vacío");
+
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+                        
+                        // Mapeo flexible de columnas
+                        const map = {};
+                        headers.forEach((h, i) => {
+                            if (h.includes('sku')) map.sku = i;
+                            else if (h.includes('nom') || h.includes('name') || h.includes('desc')) map.name = i;
+                            else if (h.includes('fam')) map.family = i;
+                            else if (h.includes('dist')) map.distributor = i;
+                            else if (h.includes('cost')) map.cost = i;
+                            else if (h.includes('prec') || h.includes('pric')) map.price = i;
+                            // Cualquier columna que parezca cantidad se asigna al stock de la sucursal ACTUAL
+                            else if (h.includes('cant') || h.includes('qty') || h.includes('stock') || h.includes('exist')) map.stock = i;
+                        });
+
+                        if (map.sku === undefined) throw new Error("No se encontró columna SKU");
+                        if (map.stock === undefined) showToast("Advertencia: No se encontró columna de Stock/Cantidad", "error");
+
+                        let newProductsCount = 0;
+                        let updatedProductsCount = 0;
+                        
+                        // Clonar inventario para modificar
+                        let nextInventory = [...inventory];
+
+                        lines.slice(1).forEach((line, idx) => {
+                            const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+                            const sku = cols[map.sku];
+                            if (!sku) return;
+
+                            const qty = map.stock !== undefined ? (parseInt(cols[map.stock]) || 0) : 0;
+                            
+                            const existingIdx = nextInventory.findIndex(p => p.sku === sku);
+
+                            if (existingIdx > -1) {
+                                // Actualizar existente
+                                updatedProductsCount++;
+                                const prod = nextInventory[existingIdx];
+                                // Actualizamos datos maestros (último gana)
+                                if (map.name) prod.name = cols[map.name];
+                                if (map.price) prod.price = parseFloat(cols[map.price]) || prod.price;
+                                if (map.cost) prod.cost = parseFloat(cols[map.cost]) || prod.cost;
+                                if (map.family) prod.family = cols[map.family];
+                                if (map.distributor) prod.distributor = cols[map.distributor];
+                                
+                                // Actualizar STOCK solo de la sucursal actual
+                                prod.stock = { ...prod.stock, [currentBranch]: qty };
+                                nextInventory[existingIdx] = prod;
+                            } else {
+                                // Crear nuevo
+                                newProductsCount++;
+                                const newItem = {
+                                    id: Date.now() + idx,
+                                    sku: sku,
+                                    name: map.name ? cols[map.name] : 'Sin Nombre',
+                                    family: map.family ? cols[map.family] : 'General',
+                                    distributor: map.distributor ? cols[map.distributor] : 'General',
+                                    cost: map.cost ? parseFloat(cols[map.cost]) : 0,
+                                    price: map.price ? parseFloat(cols[map.price]) : 0,
+                                    stock: { [currentBranch]: qty } // Solo stock en esta sucursal
+                                };
+                                nextInventory.push(newItem);
+                            }
+                        });
+
+                        setInventory(nextInventory);
+                        showToast(`Carga en ${currentBranch}: ${newProductsCount} nuevos, ${updatedProductsCount} actualizados.`);
+
+                    } catch (err) {
+                        console.error(err);
+                        showToast("Error al importar: " + err.message, "error");
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = null;
+            };
+
+            // --- Filtrado para la Vista ---
+            const filteredItems = useMemo(() => {
+                return inventory.filter(item => {
+                    const matchesSearch = (item.name + item.sku).toLowerCase().includes(searchTerm.toLowerCase());
+                    const stockInCurrent = item.stock[currentBranch] !== undefined && item.stock[currentBranch] > 0;
+                    
+                    // Si "Mostrar Todo" está apagado, solo mostrar items que existen en esta sucursal (tienen stock o registro)
+                    const matchesBranch = showAllProducts ? true : (item.stock[currentBranch] !== undefined);
+                    
+                    return matchesSearch && matchesBranch;
+                });
+            }, [inventory, searchTerm, currentBranch, showAllProducts]);
+
+            // --- Transferencias ---
+            const addToTransferQueue = (e) => {
+                e.preventDefault();
+                const { productId, toBranch, quantity } = transferForm;
+                if (currentBranch === toBranch) return showToast("Origen y Destino iguales", "error");
+                
+                const product = inventory.find(p => p.id === parseInt(productId));
+                const available = product.stock[currentBranch] || 0;
+                
+                // Validar contra cola
+                const pending = transferQueue
+                    .filter(t => t.productId === productId && t.fromBranch === currentBranch)
+                    .reduce((acc, t) => acc + parseInt(t.quantity), 0);
+                
+                if (available < (pending + parseInt(quantity))) return showToast("Stock insuficiente en " + currentBranch, "error");
+
+                setTransferQueue([...transferQueue, {
+                    id: Date.now(),
+                    productId,
+                    productName: product.name,
+                    sku: product.sku,
+                    fromBranch: currentBranch,
+                    toBranch,
+                    quantity: parseInt(quantity)
+                }]);
+                setTransferForm({ ...transferForm, quantity: 1 });
+            };
+
+            const executeTransfers = () => {
+                const nextInventory = [...inventory];
+                const nextHistory = [...history];
+
+                transferQueue.forEach(t => {
+                    const idx = nextInventory.findIndex(p => p.id == t.productId);
+                    if (idx > -1) {
+                        const prod = nextInventory[idx];
+                        const currentOrigin = prod.stock[t.fromBranch] || 0;
+                        const currentDest = prod.stock[t.toBranch] || 0;
+                        
+                        prod.stock = {
+                            ...prod.stock,
+                            [t.fromBranch]: currentOrigin - t.quantity,
+                            [t.toBranch]: currentDest + t.quantity
+                        };
+                        
+                        nextHistory.unshift({
+                            id: Math.random(),
+                            date: new Date().toLocaleString(),
+                            detail: `Transferido ${t.quantity} de ${prod.sku} desde ${t.fromBranch} a ${t.toBranch}`
+                        });
+                    }
+                });
+
+                setInventory(nextInventory);
+                setHistory(nextHistory);
+                setTransferQueue([]);
+                showToast("Transferencias ejecutadas");
+            };
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    {/* Sidebar */}
+                    <div className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
+                        <div className="p-6 flex items-center gap-3">
+                            <div className="bg-blue-600 p-2 rounded-lg"><Icon name="package" /></div>
+                            <span className="font-bold text-xl tracking-tight">StockMaster</span>
+                        </div>
+                        
+                        <div className="px-4 py-2">
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Menú Principal</div>
+                            <button onClick={() => setActiveView('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition ${activeView === 'inventory' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+                                <Icon name="layout-grid" size={20} /> Inventario
+                            </button>
+                            <button onClick={() => setActiveView('transfer')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition ${activeView === 'transfer' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+                                <Icon name="arrow-right-left" size={20} /> Transferencias
+                            </button>
+                            <button onClick={() => setActiveView('history')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition ${activeView === 'history' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+                                <Icon name="history" size={20} /> Historial
+                            </button>
+                        </div>
+
+                        <div className="mt-auto p-4 border-t border-slate-800">
+                            <div className="bg-slate-800 rounded-lg p-3">
+                                <div className="text-xs text-slate-400 mb-1">Sucursal Activa</div>
+                                <div className="font-bold truncate">{currentBranch}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
+                        
+                        {/* Header & Tabs */}
+                        <div className="bg-white border-b border-gray-200 px-8 pt-6">
+                            <div className="flex justify-between items-end">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-gray-800 mb-1">
+                                        {activeView === 'inventory' && 'Gestión de Inventario'}
+                                        {activeView === 'transfer' && 'Centro de Transferencias'}
+                                        {activeView === 'history' && 'Auditoría de Movimientos'}
+                                    </h1>
+                                    <p className="text-sm text-gray-500 mb-6">Administra múltiples puntos de venta de forma centralizada.</p>
+                                </div>
+                                
+                                {/* Branch Tabs */}
+                                <div className="flex items-center gap-1 overflow-x-auto pb-0 hide-scrollbar">
+                                    {branches.map(b => (
+                                        <button 
+                                            key={b}
+                                            onClick={() => setCurrentBranch(b)}
+                                            className={`px-4 py-2 rounded-t-lg font-medium text-sm flex items-center gap-2 transition-all whitespace-nowrap ${currentBranch === b ? 'tab-active' : 'tab-inactive'}`}
+                                        >
+                                            <Icon name="store" size={14} /> {b}
+                                            {branches.length > 1 && activeView === 'inventory' && currentBranch === b && (
+                                                <span onClick={(e) => { e.stopPropagation(); handleDeleteBranch(b); }} className="hover:text-red-500 p-1 rounded-full hover:bg-red-50 ml-1">
+                                                    <Icon name="x" size={12} />
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                    <button onClick={() => setShowBranchModal(true)} className="px-3 py-2 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-t-lg mb-[2px]">
+                                        <Icon name="plus" size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Content Body */}
+                        <div className="flex-1 overflow-y-auto p-8">
+                            
+                            {/* --- VISTA INVENTARIO --- */}
+                            {activeView === 'inventory' && (
+                                <div className="fade-in space-y-6">
+                                    {/* Toolbar */}
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center flex-wrap gap-4">
+                                        <div className="flex items-center gap-4 flex-1">
+                                            <div className="relative flex-1 max-w-md">
+                                                <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Buscar SKU, Nombre..." 
+                                                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={searchTerm}
+                                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                                />
+                                            </div>
+                                            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={showAllProducts} 
+                                                    onChange={(e) => setShowAllProducts(e.target.checked)} 
+                                                    className="rounded text-blue-600 focus:ring-blue-500"
+                                                />
+                                                Ver catálogo global
+                                            </label>
+                                        </div>
+                                        
+                                        <div className="flex gap-3">
+                                            <button className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center gap-2 transition" onClick={() => {
+                                                 const headers = ["SKU", "Nombre", "Familia", "Distribuidor", "Stock Actual", "Costo", "Precio"];
+                                                 const csv = [headers.join(","), ...filteredItems.map(i => [i.sku, `"${i.name}"`, i.family, i.distributor, i.stock[currentBranch] || 0, i.cost, i.price].join(","))].join("\n");
+                                                 const link = document.createElement("a");
+                                                 link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
+                                                 link.download = `Inventario_${currentBranch}.csv`;
+                                                 link.click();
+                                            }}>
+                                                <Icon name="download" size={18} /> Exportar
+                                            </button>
+                                            <label className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 transition cursor-pointer shadow-sm shadow-blue-200">
+                                                <Icon name="upload" size={18} /> 
+                                                <span>Cargar Excel a {currentBranch}</span>
+                                                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Tabla */}
+                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                                <tr>
+                                                    <th className="px-6 py-4">Producto</th>
+                                                    <th className="px-6 py-4">Detalles</th>
+                                                    <th className="px-6 py-4 text-center bg-blue-50/50 text-blue-800">Stock en {currentBranch}</th>
+                                                    <th className="px-6 py-4 text-right">Económico</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {filteredItems.map(item => (
+                                                    <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                                        <td className="px-6 py-3">
+                                                            <div className="font-bold text-gray-900">{item.name}</div>
+                                                            <div className="text-xs text-gray-500 font-mono bg-gray-100 inline-block px-1 rounded mt-1">{item.sku}</div>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-sm text-gray-600">
+                                                            <div><span className="text-gray-400">Fam:</span> {item.family}</div>
+                                                            <div><span className="text-gray-400">Dist:</span> {item.distributor}</div>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center bg-blue-50/20">
+                                                            <input 
+                                                                type="number" 
+                                                                className="w-20 text-center border border-gray-200 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-800"
+                                                                value={item.stock[currentBranch] || 0}
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 0;
+                                                                    setInventory(prev => prev.map(p => p.id === item.id ? { ...p, stock: { ...p.stock, [currentBranch]: val } } : p));
+                                                                }}
+                                                            />
+                                                        </td>
+                                                        <td className="px-6 py-3 text-right text-sm">
+                                                            <div className="text-gray-900 font-medium">${item.price}</div>
+                                                            <div className="text-xs text-gray-400">Costo: ${item.cost}</div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {filteredItems.length === 0 && (
+                                                    <tr><td colSpan="4" className="text-center py-12 text-gray-400">No hay productos en esta vista</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* --- VISTA TRANSFERENCIAS --- */}
+                            {activeView === 'transfer' && (
+                                <div className="fade-in grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    <div className="lg:col-span-1 space-y-6">
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                                            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                                <Icon name="package-minus" className="text-blue-600" /> Nuevo Movimiento
+                                            </h3>
+                                            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800 mb-4 border border-blue-100">
+                                                Origen: <strong>{currentBranch}</strong>
+                                                <p className="text-xs mt-1 text-blue-600">Cambia la pestaña arriba para cambiar el origen.</p>
+                                            </div>
+                                            <form onSubmit={addToTransferQueue} className="space-y-4">
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-500 uppercase">Producto</label>
+                                                    <select 
+                                                        required
+                                                        className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={transferForm.productId}
+                                                        onChange={e => setTransferForm({ ...transferForm, productId: e.target.value })}
+                                                    >
+                                                        <option value="">Seleccionar...</option>
+                                                        {inventory
+                                                            .filter(i => (i.stock[currentBranch] || 0) > 0)
+                                                            .map(i => <option key={i.id} value={i.id}>{i.sku} - {i.name}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-500 uppercase">Destino</label>
+                                                    <select 
+                                                        required
+                                                        className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={transferForm.toBranch}
+                                                        onChange={e => setTransferForm({ ...transferForm, toBranch: e.target.value })}
+                                                    >
+                                                        <option value="">Seleccionar sucursal...</option>
+                                                        {branches.filter(b => b !== currentBranch).map(b => <option key={b} value={b}>{b}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-500 uppercase">Cantidad</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input 
+                                                            type="number" min="1" required
+                                                            className="flex-1 mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            value={transferForm.quantity}
+                                                            onChange={e => setTransferForm({ ...transferForm, quantity: e.target.value })}
+                                                        />
+                                                        {transferForm.productId && (
+                                                            <div className="text-xs text-gray-500 mt-1 px-2 bg-gray-100 rounded h-10 flex items-center">
+                                                                Max: {inventory.find(i => i.id == transferForm.productId)?.stock[currentBranch]}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <button className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition shadow-lg shadow-slate-200">
+                                                    Agregar a Cola
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+
+                                    <div className="lg:col-span-2 flex flex-col h-full">
+                                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col">
+                                            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
+                                                <h3 className="font-bold text-gray-700">Cola de Salida ({transferQueue.length})</h3>
+                                                {transferQueue.length > 0 && (
+                                                    <button onClick={executeTransfers} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg shadow flex items-center gap-2">
+                                                        <Icon name="check-check" size={16}/> Confirmar y Enviar
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 overflow-auto p-0">
+                                                {transferQueue.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center h-64 text-gray-300">
+                                                        <Icon name="clipboard-list" size={48} className="mb-2"/>
+                                                        <p>La cola de envíos está vacía</p>
+                                                    </div>
+                                                ) : (
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                                                            <tr>
+                                                                <th className="px-4 py-2">Producto</th>
+                                                                <th className="px-4 py-2">Origen</th>
+                                                                <th className="px-4 py-2">Destino</th>
+                                                                <th className="px-4 py-2 text-center">Cant</th>
+                                                                <th className="px-4 py-2"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y">
+                                                            {transferQueue.map(item => (
+                                                                <tr key={item.id} className="hover:bg-blue-50">
+                                                                    <td className="px-4 py-3 font-medium text-gray-900">{item.sku}</td>
+                                                                    <td className="px-4 py-3 text-red-600 font-medium">{item.fromBranch}</td>
+                                                                    <td className="px-4 py-3 text-green-600 font-medium">{item.toBranch}</td>
+                                                                    <td className="px-4 py-3 text-center font-bold text-lg">{item.quantity}</td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <button onClick={() => setTransferQueue(transferQueue.filter(t => t.id !== item.id))} className="text-gray-400 hover:text-red-500">
+                                                                            <Icon name="trash-2" size={16} />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* --- VISTA HISTORIAL --- */}
+                            {activeView === 'history' && (
+                                <div className="fade-in bg-white rounded-xl shadow-sm border border-gray-200">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-gray-50 border-b">
+                                            <tr>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Fecha</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Descripción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {history.map(h => (
+                                                <tr key={h.id} className="hover:bg-gray-50">
+                                                    <td className="px-6 py-4 text-sm text-gray-500 w-48">{h.date}</td>
+                                                    <td className="px-6 py-4 text-gray-800">{h.detail}</td>
+                                                </tr>
+                                            ))}
+                                            {history.length === 0 && <tr><td colSpan="2" className="text-center py-8 text-gray-400">Sin registros</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Modales y Toasts */}
+                    <NewBranchModal isOpen={showBranchModal} onClose={() => setShowBranchModal(false)} onConfirm={handleAddBranch} />
+                    {notification && <Toast message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
