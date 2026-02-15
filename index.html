@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StockMaster Pro - Multi-Store</title>
+    <title>StockMaster Pro - Excel Edition</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -17,6 +17,9 @@
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- SheetJS (Librería para leer Excel .xls/.xlsx) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
@@ -41,10 +44,11 @@
 
         // --- Datos Iniciales ---
         const INITIAL_DATA = [
-            { id: 1, sku: 'LAP-001', name: 'Laptop Gamer X1', family: 'Electrónica', distributor: 'TechWorld', cost: 800, price: 1200, stock: { 'Casa Central': 10 } },
+            { id: 1, sku: 'EJEMPLO-01', name: 'Producto Demo', family: 'General', distributor: 'Propio', cost: 100, price: 150, stock: { 'Casa Central': 50 } },
         ];
 
         const INITIAL_BRANCHES = ['Casa Central'];
+        const ITEMS_PER_PAGE = 50; // Límite para mantener la UI rápida
 
         // --- Iconos ---
         const Icon = ({ name, size = 18, className = "" }) => {
@@ -94,10 +98,14 @@
         // --- App Principal ---
         const App = () => {
             // Estados
-            const [activeView, setActiveView] = useState('inventory'); // inventory, transfer, history
+            const [activeView, setActiveView] = useState('inventory');
             const [currentBranch, setCurrentBranch] = useState('Casa Central');
             const [showBranchModal, setShowBranchModal] = useState(false);
-            const [showAllProducts, setShowAllProducts] = useState(false); // Toggle para ver productos sin stock en la sucursal actual
+            const [showAllProducts, setShowAllProducts] = useState(false);
+            const [isLoading, setIsLoading] = useState(false);
+
+            // Paginación
+            const [currentPage, setCurrentPage] = useState(1);
 
             // Datos Persistentes
             const [branches, setBranches] = useState(() => JSON.parse(localStorage.getItem('sm_branches')) || INITIAL_BRANCHES);
@@ -112,7 +120,6 @@
             const [transferQueue, setTransferQueue] = useState([]);
             const [transferForm, setTransferForm] = useState({ productId: '', toBranch: '', quantity: 1 });
 
-            // Referencias
             const fileInputRef = useRef(null);
 
             // Persistencia
@@ -120,15 +127,14 @@
             useEffect(() => { localStorage.setItem('sm_branches', JSON.stringify(branches)); }, [branches]);
             useEffect(() => { localStorage.setItem('sm_history', JSON.stringify(history)); }, [history]);
 
-            // Helpers
+            // Reset página al filtrar
+            useEffect(() => { setCurrentPage(1); }, [searchTerm, currentBranch, showAllProducts]);
+
             const showToast = (msg, type = 'success') => setNotification({ message: msg, type });
 
             // --- Lógica de Sucursales ---
             const handleAddBranch = (name) => {
-                if (branches.includes(name)) {
-                    showToast("Esa sucursal ya existe", "error");
-                    return;
-                }
+                if (branches.includes(name)) return showToast("Esa sucursal ya existe", "error");
                 setBranches([...branches, name]);
                 setCurrentBranch(name);
                 setShowBranchModal(false);
@@ -143,7 +149,6 @@
                 setBranches(newBranches);
                 if (currentBranch === name) setCurrentBranch(newBranches[0]);
 
-                // Eliminar stock de esa sucursal en el inventario
                 setInventory(prev => prev.map(item => {
                     const newStock = { ...item.stock };
                     delete newStock[name];
@@ -152,106 +157,113 @@
                 showToast(`Sucursal "${name}" eliminada`);
             };
 
-            // --- Importación (Lógica Clave) ---
+            // --- Lógica Importación Excel (.xls, .xlsx, .csv) ---
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
+                setIsLoading(true);
+
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     try {
-                        const csvData = event.target.result;
-                        const lines = csvData.split('\n').map(line => line.trim()).filter(line => line);
-                        if (lines.length < 2) throw new Error("Archivo vacío");
-
-                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+                        const data = new Uint8Array(event.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
                         
-                        // Mapeo flexible de columnas
-                        const map = {};
-                        headers.forEach((h, i) => {
-                            if (h.includes('sku')) map.sku = i;
-                            else if (h.includes('nom') || h.includes('name') || h.includes('desc')) map.name = i;
-                            else if (h.includes('fam')) map.family = i;
-                            else if (h.includes('dist')) map.distributor = i;
-                            else if (h.includes('cost')) map.cost = i;
-                            else if (h.includes('prec') || h.includes('pric')) map.price = i;
-                            // Cualquier columna que parezca cantidad se asigna al stock de la sucursal ACTUAL
-                            else if (h.includes('cant') || h.includes('qty') || h.includes('stock') || h.includes('exist')) map.stock = i;
+                        // Tomamos la primera hoja
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        
+                        // Convertimos a JSON Array
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" }); // defval asegura que no haya undefined
+
+                        if (jsonData.length === 0) throw new Error("La hoja está vacía");
+
+                        // Analizamos las claves del primer objeto para mapear columnas
+                        const firstRow = jsonData[0];
+                        const headers = Object.keys(firstRow);
+                        
+                        // Buscamos columnas clave dinámicamente
+                        let keyMap = { sku: null, name: null, family: null, distributor: null, cost: null, price: null, stock: null };
+
+                        headers.forEach(h => {
+                            const lowerH = h.toLowerCase();
+                            if (lowerH.includes('sku') || lowerH.includes('codigo') || lowerH.includes('código')) keyMap.sku = h;
+                            else if (lowerH.includes('nom') || lowerH.includes('desc') || lowerH.includes('prod')) keyMap.name = h;
+                            else if (lowerH.includes('fam') || lowerH.includes('cat')) keyMap.family = h;
+                            else if (lowerH.includes('dist') || lowerH.includes('prov')) keyMap.distributor = h;
+                            else if (lowerH.includes('cost')) keyMap.cost = h;
+                            else if (lowerH.includes('prec') || lowerH.includes('vent') || lowerH.includes('pvp')) keyMap.price = h;
+                            else if (lowerH.includes('cant') || lowerH.includes('stock') || lowerH.includes('exist')) keyMap.stock = h;
                         });
 
-                        if (map.sku === undefined) throw new Error("No se encontró columna SKU");
-                        if (map.stock === undefined) showToast("Advertencia: No se encontró columna de Stock/Cantidad", "error");
+                        if (!keyMap.sku) throw new Error("No se encontró una columna para SKU/Código");
 
-                        let newProductsCount = 0;
-                        let updatedProductsCount = 0;
-                        
-                        // Clonar inventario para modificar
+                        let newCount = 0;
+                        let updatedCount = 0;
                         let nextInventory = [...inventory];
 
-                        lines.slice(1).forEach((line, idx) => {
-                            const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-                            const sku = cols[map.sku];
+                        // Procesamos los datos (Batch processing)
+                        jsonData.forEach((row, idx) => {
+                            const sku = String(row[keyMap.sku]).trim();
                             if (!sku) return;
 
-                            const qty = map.stock !== undefined ? (parseInt(cols[map.stock]) || 0) : 0;
-                            
+                            const qty = keyMap.stock ? (parseInt(row[keyMap.stock]) || 0) : 0;
                             const existingIdx = nextInventory.findIndex(p => p.sku === sku);
 
                             if (existingIdx > -1) {
-                                // Actualizar existente
-                                updatedProductsCount++;
+                                updatedCount++;
                                 const prod = nextInventory[existingIdx];
-                                // Actualizamos datos maestros (último gana)
-                                if (map.name) prod.name = cols[map.name];
-                                if (map.price) prod.price = parseFloat(cols[map.price]) || prod.price;
-                                if (map.cost) prod.cost = parseFloat(cols[map.cost]) || prod.cost;
-                                if (map.family) prod.family = cols[map.family];
-                                if (map.distributor) prod.distributor = cols[map.distributor];
-                                
-                                // Actualizar STOCK solo de la sucursal actual
-                                prod.stock = { ...prod.stock, [currentBranch]: qty };
+                                if (keyMap.name) prod.name = row[keyMap.name];
+                                if (keyMap.price) prod.price = parseFloat(row[keyMap.price]) || prod.price;
+                                if (keyMap.cost) prod.cost = parseFloat(row[keyMap.cost]) || prod.cost;
+                                if (keyMap.family) prod.family = row[keyMap.family] || prod.family;
+                                if (keyMap.distributor) prod.distributor = row[keyMap.distributor] || prod.distributor;
+                                prod.stock = { ...prod.stock, [currentBranch]: qty }; // Sobreescribe stock de ESTA sucursal
                                 nextInventory[existingIdx] = prod;
                             } else {
-                                // Crear nuevo
-                                newProductsCount++;
-                                const newItem = {
-                                    id: Date.now() + idx,
+                                newCount++;
+                                nextInventory.push({
+                                    id: Date.now() + idx + Math.random(),
                                     sku: sku,
-                                    name: map.name ? cols[map.name] : 'Sin Nombre',
-                                    family: map.family ? cols[map.family] : 'General',
-                                    distributor: map.distributor ? cols[map.distributor] : 'General',
-                                    cost: map.cost ? parseFloat(cols[map.cost]) : 0,
-                                    price: map.price ? parseFloat(cols[map.price]) : 0,
-                                    stock: { [currentBranch]: qty } // Solo stock en esta sucursal
-                                };
-                                nextInventory.push(newItem);
+                                    name: keyMap.name ? row[keyMap.name] : 'Sin Nombre',
+                                    family: keyMap.family ? row[keyMap.family] : 'General',
+                                    distributor: keyMap.distributor ? row[keyMap.distributor] : 'General',
+                                    cost: keyMap.cost ? parseFloat(row[keyMap.cost]) : 0,
+                                    price: keyMap.price ? parseFloat(row[keyMap.price]) : 0,
+                                    stock: { [currentBranch]: qty }
+                                });
                             }
                         });
 
                         setInventory(nextInventory);
-                        showToast(`Carga en ${currentBranch}: ${newProductsCount} nuevos, ${updatedProductsCount} actualizados.`);
-
+                        showToast(`Éxito: ${newCount} nuevos, ${updatedCount} actualizados.`);
                     } catch (err) {
                         console.error(err);
-                        showToast("Error al importar: " + err.message, "error");
+                        showToast("Error al procesar Excel: " + err.message, "error");
+                    } finally {
+                        setIsLoading(false);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
                     }
                 };
-                reader.readAsText(file);
-                e.target.value = null;
+                reader.readAsArrayBuffer(file);
             };
 
-            // --- Filtrado para la Vista ---
+            // --- Filtrado y Paginación ---
             const filteredItems = useMemo(() => {
                 return inventory.filter(item => {
                     const matchesSearch = (item.name + item.sku).toLowerCase().includes(searchTerm.toLowerCase());
-                    const stockInCurrent = item.stock[currentBranch] !== undefined && item.stock[currentBranch] > 0;
-                    
-                    // Si "Mostrar Todo" está apagado, solo mostrar items que existen en esta sucursal (tienen stock o registro)
                     const matchesBranch = showAllProducts ? true : (item.stock[currentBranch] !== undefined);
-                    
                     return matchesSearch && matchesBranch;
                 });
             }, [inventory, searchTerm, currentBranch, showAllProducts]);
+
+            const paginatedItems = useMemo(() => {
+                const start = (currentPage - 1) * ITEMS_PER_PAGE;
+                return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+            }, [filteredItems, currentPage]);
+
+            const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
 
             // --- Transferencias ---
             const addToTransferQueue = (e) => {
@@ -262,12 +274,11 @@
                 const product = inventory.find(p => p.id === parseInt(productId));
                 const available = product.stock[currentBranch] || 0;
                 
-                // Validar contra cola
                 const pending = transferQueue
                     .filter(t => t.productId === productId && t.fromBranch === currentBranch)
                     .reduce((acc, t) => acc + parseInt(t.quantity), 0);
                 
-                if (available < (pending + parseInt(quantity))) return showToast("Stock insuficiente en " + currentBranch, "error");
+                if (available < (pending + parseInt(quantity))) return showToast("Stock insuficiente", "error");
 
                 setTransferQueue([...transferQueue, {
                     id: Date.now(),
@@ -354,10 +365,11 @@
                                         {activeView === 'transfer' && 'Centro de Transferencias'}
                                         {activeView === 'history' && 'Auditoría de Movimientos'}
                                     </h1>
-                                    <p className="text-sm text-gray-500 mb-6">Administra múltiples puntos de venta de forma centralizada.</p>
+                                    <p className="text-sm text-gray-500 mb-6">
+                                        Total Productos: {inventory.length} | Mostrando: {filteredItems.length}
+                                    </p>
                                 </div>
                                 
-                                {/* Branch Tabs */}
                                 <div className="flex items-center gap-1 overflow-x-auto pb-0 hide-scrollbar">
                                     {branches.map(b => (
                                         <button 
@@ -412,67 +424,106 @@
                                         
                                         <div className="flex gap-3">
                                             <button className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center gap-2 transition" onClick={() => {
-                                                 const headers = ["SKU", "Nombre", "Familia", "Distribuidor", "Stock Actual", "Costo", "Precio"];
-                                                 const csv = [headers.join(","), ...filteredItems.map(i => [i.sku, `"${i.name}"`, i.family, i.distributor, i.stock[currentBranch] || 0, i.cost, i.price].join(","))].join("\n");
-                                                 const link = document.createElement("a");
-                                                 link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
-                                                 link.download = `Inventario_${currentBranch}.csv`;
-                                                 link.click();
+                                                 /* Exportación Simple a Excel (usando la librería) */
+                                                 const ws = XLSX.utils.json_to_sheet(filteredItems.map(i => ({
+                                                     SKU: i.sku,
+                                                     Nombre: i.name,
+                                                     Familia: i.family,
+                                                     Distribuidor: i.distributor,
+                                                     Stock_Sucursal: i.stock[currentBranch] || 0,
+                                                     Costo: i.cost,
+                                                     Precio: i.price
+                                                 })));
+                                                 const wb = XLSX.utils.book_new();
+                                                 XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+                                                 XLSX.writeFile(wb, `Inventario_${currentBranch}.xlsx`);
                                             }}>
                                                 <Icon name="download" size={18} /> Exportar
                                             </button>
-                                            <label className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 transition cursor-pointer shadow-sm shadow-blue-200">
-                                                <Icon name="upload" size={18} /> 
-                                                <span>Cargar Excel a {currentBranch}</span>
-                                                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
+                                            <label className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 transition cursor-pointer shadow-sm shadow-blue-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                                <Icon name={isLoading ? "loader-2" : "upload"} size={18} className={isLoading ? "animate-spin" : ""} /> 
+                                                <span>{isLoading ? 'Procesando...' : `Cargar Excel a ${currentBranch}`}</span>
+                                                <input 
+                                                    type="file" 
+                                                    ref={fileInputRef} 
+                                                    disabled={isLoading}
+                                                    className="hidden" 
+                                                    accept=".xlsx, .xls, .csv" 
+                                                    onChange={handleFileUpload} 
+                                                />
                                             </label>
                                         </div>
                                     </div>
 
                                     {/* Tabla */}
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                                        <table className="w-full text-left">
-                                            <thead className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                                <tr>
-                                                    <th className="px-6 py-4">Producto</th>
-                                                    <th className="px-6 py-4">Detalles</th>
-                                                    <th className="px-6 py-4 text-center bg-blue-50/50 text-blue-800">Stock en {currentBranch}</th>
-                                                    <th className="px-6 py-4 text-right">Económico</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-100">
-                                                {filteredItems.map(item => (
-                                                    <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                                                        <td className="px-6 py-3">
-                                                            <div className="font-bold text-gray-900">{item.name}</div>
-                                                            <div className="text-xs text-gray-500 font-mono bg-gray-100 inline-block px-1 rounded mt-1">{item.sku}</div>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-sm text-gray-600">
-                                                            <div><span className="text-gray-400">Fam:</span> {item.family}</div>
-                                                            <div><span className="text-gray-400">Dist:</span> {item.distributor}</div>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-center bg-blue-50/20">
-                                                            <input 
-                                                                type="number" 
-                                                                className="w-20 text-center border border-gray-200 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-800"
-                                                                value={item.stock[currentBranch] || 0}
-                                                                onChange={(e) => {
-                                                                    const val = parseInt(e.target.value) || 0;
-                                                                    setInventory(prev => prev.map(p => p.id === item.id ? { ...p, stock: { ...p.stock, [currentBranch]: val } } : p));
-                                                                }}
-                                                            />
-                                                        </td>
-                                                        <td className="px-6 py-3 text-right text-sm">
-                                                            <div className="text-gray-900 font-medium">${item.price}</div>
-                                                            <div className="text-xs text-gray-400">Costo: ${item.cost}</div>
-                                                        </td>
+                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[400px]">
+                                        <div className="overflow-x-auto flex-1">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider sticky top-0">
+                                                    <tr>
+                                                        <th className="px-6 py-4">Producto</th>
+                                                        <th className="px-6 py-4">Detalles</th>
+                                                        <th className="px-6 py-4 text-center bg-blue-50/50 text-blue-800">Stock en {currentBranch}</th>
+                                                        <th className="px-6 py-4 text-right">Económico</th>
                                                     </tr>
-                                                ))}
-                                                {filteredItems.length === 0 && (
-                                                    <tr><td colSpan="4" className="text-center py-12 text-gray-400">No hay productos en esta vista</td></tr>
-                                                )}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {paginatedItems.map(item => (
+                                                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-6 py-3">
+                                                                <div className="font-bold text-gray-900">{item.name}</div>
+                                                                <div className="text-xs text-gray-500 font-mono bg-gray-100 inline-block px-1 rounded mt-1">{item.sku}</div>
+                                                            </td>
+                                                            <td className="px-6 py-3 text-sm text-gray-600">
+                                                                <div><span className="text-gray-400">Fam:</span> {item.family}</div>
+                                                                <div><span className="text-gray-400">Dist:</span> {item.distributor}</div>
+                                                            </td>
+                                                            <td className="px-6 py-3 text-center bg-blue-50/20">
+                                                                <input 
+                                                                    type="number" 
+                                                                    className="w-20 text-center border border-gray-200 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-800"
+                                                                    value={item.stock[currentBranch] || 0}
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value) || 0;
+                                                                        setInventory(prev => prev.map(p => p.id === item.id ? { ...p, stock: { ...p.stock, [currentBranch]: val } } : p));
+                                                                    }}
+                                                                />
+                                                            </td>
+                                                            <td className="px-6 py-3 text-right text-sm">
+                                                                <div className="text-gray-900 font-medium">${item.price}</div>
+                                                                <div className="text-xs text-gray-400">Costo: ${item.cost}</div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {paginatedItems.length === 0 && (
+                                                        <tr><td colSpan="4" className="text-center py-12 text-gray-400">No hay productos en esta vista</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        
+                                        {/* Pagination Controls */}
+                                        {totalPages > 1 && (
+                                            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+                                                <button 
+                                                    disabled={currentPage === 1}
+                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                    className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium hover:bg-gray-100"
+                                                >
+                                                    Anterior
+                                                </button>
+                                                <span className="text-sm text-gray-600">
+                                                    Página {currentPage} de {totalPages}
+                                                </span>
+                                                <button 
+                                                    disabled={currentPage === totalPages}
+                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                    className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium hover:bg-gray-100"
+                                                >
+                                                    Siguiente
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
