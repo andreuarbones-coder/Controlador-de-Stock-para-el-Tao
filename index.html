@@ -3,677 +3,768 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StockMaster Pro - Excel Edition</title>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Babel para JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
-    <!-- SheetJS (Librería para leer Excel .xls/.xlsx) -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-
+    <title>AdminRepartos - Gestión de Repartos</title>
+    <!-- Librería para leer Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        
-        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; background: #eff6ff; }
-        .tab-inactive { color: #64748b; border-bottom: 2px solid transparent; }
-        .tab-inactive:hover { color: #1e293b; background: #f8fafc; }
+        * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; }
+        body { background: #f4f6f9; padding: 1rem; min-height: 100vh; display: flex; justify-content: center; }
+        #app { max-width: 1400px; width: 100%; background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); overflow: hidden; }
+        header { background: #1e2b3a; color: white; padding: 1rem 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; }
+        header h1 { font-size: 1.8rem; font-weight: 400; margin-right: auto; }
+        .nav-btn { background: transparent; border: none; color: #ccc; font-size: 1rem; padding: 0.5rem 1rem; cursor: pointer; border-radius: 30px; transition: 0.2s; }
+        .nav-btn:hover { background: #2c3e50; color: white; }
+        .nav-btn.active { background: #3b4e62; color: white; font-weight: 500; }
+        main { padding: 2rem; }
+        .views-container > div { display: none; }
+        .views-container > div.active-view { display: block; }
+        h2 { margin-bottom: 1.5rem; color: #1e2b3a; font-weight: 400; border-bottom: 2px solid #eaeef2; padding-bottom: 0.5rem; }
+        button, .btn { background: #1e2b3a; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 30px; font-size: 0.95rem; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
+        button:hover { background: #2c3e50; }
+        button.secondary { background: white; color: #1e2b3a; border: 1px solid #1e2b3a; }
+        button.secondary:hover { background: #f0f3f7; }
+        .card { background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #eaeef2; margin-bottom: 2rem; }
+        .flex-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 1.5rem; }
+        .search-box { flex: 1; min-width: 250px; padding: 0.7rem 1rem; border-radius: 30px; border: 1px solid #d0d9e2; font-size: 1rem; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid #eaeef2; }
+        th { background: #f8fafc; font-weight: 500; color: #2c3e50; }
+        tr:hover { background: #f9fcff; }
+        .badge { display: inline-block; padding: 0.25rem 0.8rem; border-radius: 30px; font-size: 0.85rem; font-weight: 500; }
+        .badge.pendiente { background: #fff3cd; color: #856404; }
+        .badge.entregado { background: #d4edda; color: #155724; }
+        .badge.incompleto { background: #f8d7da; color: #721c24; }
+        .actions-cell { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .icon-btn { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 8px; }
+        .icon-btn:hover { background: #e9ecef; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.3rem; font-weight: 500; color: #2c3e50; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.7rem 1rem; border-radius: 30px; border: 1px solid #d0d9e2; font-size: 1rem; }
+        .form-group textarea { border-radius: 16px; resize: vertical; min-height: 80px; }
+        .photo-preview { max-width: 150px; max-height: 150px; border-radius: 8px; border: 1px solid #ccc; margin-top: 0.5rem; }
+        .product-item { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+        .product-item input { flex: 1; }
+        .remove-product { background: #f8d7da; color: #721c24; border: none; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; }
+        .file-upload { border: 2px dashed #b8c5d0; border-radius: 30px; padding: 1.5rem; text-align: center; background: #fcfdff; cursor: pointer; }
+        .file-upload:hover { background: #f2f6fa; }
+        .alert { padding: 1rem; border-radius: 30px; margin-bottom: 1rem; }
+        .alert.success { background: #d4edda; color: #155724; }
+        .alert.error { background: #f8d7da; color: #721c24; }
+        /* Indicador de carga */
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #1e2b3a; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div id="root"></div>
-
-    <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
-
-        // --- Datos Iniciales ---
-        const INITIAL_DATA = [
-            { id: 1, sku: 'EJEMPLO-01', name: 'Producto Demo', family: 'General', distributor: 'Propio', cost: 100, price: 150, stock: { 'Casa Central': 50 } },
-        ];
-
-        const INITIAL_BRANCHES = ['Casa Central'];
-        const ITEMS_PER_PAGE = 50; // Límite para mantener la UI rápida
-
-        // --- Iconos ---
-        const Icon = ({ name, size = 18, className = "" }) => {
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            }, [name]);
-            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
-        };
-
-        // --- Toast ---
-        const Toast = ({ message, type, onClose }) => {
-            useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, []);
-            const colors = type === 'success' ? 'bg-green-600' : 'bg-red-500';
-            return (
-                <div className={`fixed bottom-4 right-4 ${colors} text-white px-6 py-3 rounded-lg shadow-lg fade-in z-50 flex items-center gap-2`}>
-                    <Icon name={type === 'success' ? 'check-circle' : 'alert-circle'} />
-                    {message}
+<div id="app">
+    <header>
+        <h1>📦 AdminRepartos</h1>
+        <button class="nav-btn" data-view="orders">📋 Pedidos</button>
+        <button class="nav-btn" data-view="customers">👥 Clientes</button>
+        <button class="nav-btn" data-view="products">📦 Productos</button>
+        <button class="nav-btn" data-view="backup">💾 Backup</button>
+    </header>
+    <main>
+        <div class="views-container" id="viewsContainer">
+            <!-- Pedidos -->
+            <div id="view-orders" class="active-view">
+                <div class="flex-row">
+                    <h2>📋 Lista de Pedidos</h2>
+                    <button id="newOrderBtn" class="secondary">➕ Nuevo pedido</button>
                 </div>
-            );
-        };
-
-        // --- Modal Nuevo Branch ---
-        const NewBranchModal = ({ isOpen, onClose, onConfirm }) => {
-            const [name, setName] = useState('');
-            if (!isOpen) return null;
-            return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in">
-                    <div className="bg-white rounded-xl p-6 w-96 shadow-2xl">
-                        <h3 className="text-lg font-bold mb-4">Nueva Sucursal</h3>
-                        <input 
-                            autoFocus
-                            type="text" 
-                            placeholder="Nombre (ej: Sucursal Norte)" 
-                            className="w-full border rounded-lg p-2 mb-4 outline-none focus:ring-2 focus:ring-blue-500"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
-                        <div className="flex justify-end gap-2">
-                            <button onClick={onClose} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg">Cancelar</button>
-                            <button onClick={() => { if(name) onConfirm(name); setName(''); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Crear</button>
-                        </div>
+                <div class="flex-row">
+                    <input type="text" id="searchOrders" class="search-box" placeholder="🔍 Buscar por cliente o estado...">
+                    <select id="statusFilter">
+                        <option value="todos">Todos los estados</option>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="entregado">Entregado</option>
+                        <option value="incompleto">Incompleto</option>
+                    </select>
+                </div>
+                <div id="ordersList"></div>
+            </div>
+            <!-- Clientes -->
+            <div id="view-customers">
+                <div class="flex-row">
+                    <h2>👥 Clientes</h2>
+                    <button id="newCustomerBtn" class="secondary">➕ Nuevo cliente</button>
+                </div>
+                <div id="customersList"></div>
+            </div>
+            <!-- Productos -->
+            <div id="view-products">
+                <h2>📦 Productos (para autocompletado)</h2>
+                <div class="card">
+                    <p style="margin-bottom:1rem">Subí un archivo CSV (columna "nombre") o Excel (XLSX, XLS) para cargar productos.</p>
+                    <div class="file-upload" id="dropZone">
+                        📂 Arrastrá o hacé clic para seleccionar archivo (CSV o Excel)
+                        <input type="file" id="productFile" accept=".csv, text/csv, .xls, .xlsx, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display: none;">
+                    </div>
+                    <div id="productList" style="margin-top:2rem"></div>
+                    <button id="clearProducts" class="secondary" style="margin-top:1rem">🗑️ Limpiar productos</button>
+                </div>
+            </div>
+            <!-- Backup -->
+            <div id="view-backup">
+                <h2>💾 Respaldos</h2>
+                <div class="card">
+                    <button id="exportBackup" style="width:100%; margin-bottom:1rem">📥 Exportar datos (backup.json)</button>
+                    <div class="file-upload" id="importZone">
+                        📂 Arrastrá o hacé clic para restaurar backup (JSON)
+                        <input type="file" id="importFile" accept=".json, application/json" style="display: none;">
                     </div>
                 </div>
-            );
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal oculto para formulario de pedido -->
+<div id="orderModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
+    <div style="background:white; border-radius:30px; width:90%; max-width:800px; max-height:90vh; overflow:auto; padding:2rem;">
+        <h3 id="modalTitle">➕ Nuevo Pedido</h3>
+        <form id="orderForm">
+            <input type="hidden" id="orderId">
+            <div class="form-grid">
+                <div>
+                    <div class="form-group">
+                        <label>Cliente</label>
+                        <select id="customerSelect" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha</label>
+                        <input type="datetime-local" id="orderDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Estado</label>
+                        <select id="orderStatus">
+                            <option value="pendiente">Pendiente</option>
+                            <option value="entregado">Entregado</option>
+                            <option value="incompleto">Incompleto</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <div class="form-group">
+                        <label>Comentarios</label>
+                        <textarea id="orderComments" placeholder="Notas del pedido..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Foto del ticket</label>
+                        <input type="file" id="ticketPhoto" accept="image/*">
+                        <div id="photoPreviewContainer"></div>
+                    </div>
+                </div>
+            </div>
+            <fieldset style="border:1px solid #eaeef2; border-radius:20px; padding:1rem; margin:1rem 0;">
+                <legend>📦 Productos en el pedido</legend>
+                <div id="productsContainer"></div>
+                <button type="button" id="addProductBtn" class="secondary" style="margin-top:0.5rem">➕ Agregar producto</button>
+            </fieldset>
+            <div style="display:flex; gap:1rem; justify-content:flex-end; margin-top:2rem;">
+                <button type="button" id="cancelOrderBtn" class="secondary">Cancelar</button>
+                <button type="submit" id="saveOrderBtn">Guardar pedido</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal para cliente -->
+<div id="customerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
+    <div style="background:white; border-radius:30px; width:90%; max-width:500px; padding:2rem;">
+        <h3 id="customerModalTitle">👤 Nuevo Cliente</h3>
+        <form id="customerForm">
+            <input type="hidden" id="customerId">
+            <div class="form-group">
+                <label>Nombre *</label>
+                <input type="text" id="customerName" required>
+            </div>
+            <div class="form-group">
+                <label>Teléfono</label>
+                <input type="text" id="customerPhone">
+            </div>
+            <div class="form-group">
+                <label>Dirección</label>
+                <input type="text" id="customerAddress">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="customerEmail">
+            </div>
+            <div style="display:flex; gap:1rem; justify-content:flex-end; margin-top:2rem;">
+                <button type="button" id="cancelCustomerBtn" class="secondary">Cancelar</button>
+                <button type="submit" id="saveCustomerBtn">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // --- Estado inicial y claves de localStorage ---
+        const STORAGE_KEYS = {
+            CUSTOMERS: 'repartos_customers',
+            PRODUCTS: 'repartos_products',
+            ORDERS: 'repartos_orders'
         };
 
-        // --- App Principal ---
-        const App = () => {
-            // Estados
-            const [activeView, setActiveView] = useState('inventory');
-            const [currentBranch, setCurrentBranch] = useState('Casa Central');
-            const [showBranchModal, setShowBranchModal] = useState(false);
-            const [showAllProducts, setShowAllProducts] = useState(false);
-            const [isLoading, setIsLoading] = useState(false);
+        // Datos de ejemplo
+        let customers = [
+            { id: 'c1', name: 'Juan Pérez', phone: '11 1234-5678', address: 'Av. Siempreviva 123', email: 'juan@mail.com' },
+            { id: 'c2', name: 'María Gómez', phone: '11 8765-4321', address: 'Calle Falsa 456', email: 'maria@mail.com' }
+        ];
+        let products = [
+            { id: 'p1', name: 'Arroz 1kg', price: 120 },
+            { id: 'p2', name: 'Fideos 500g', price: 90 },
+            { id: 'p3', name: 'Aceite 1.5L', price: 350 }
+        ];
+        let orders = [
+            { id: 'o1', customerId: 'c1', date: '2025-03-15T10:30', status: 'pendiente', comments: 'Llamar antes de llegar', items: [{ productId: 'p1', productName: 'Arroz 1kg', quantity: 2, price: 120 }], ticketPhoto: '' },
+            { id: 'o2', customerId: 'c2', date: '2025-03-16T15:45', status: 'entregado', comments: 'Dejar con el portero', items: [{ productId: 'p2', productName: 'Fideos 500g', quantity: 3, price: 90 }], ticketPhoto: '' }
+        ];
 
-            // Paginación
-            const [currentPage, setCurrentPage] = useState(1);
+        // Cargar desde localStorage si existe
+        function loadFromStorage() {
+            try {
+                const storedCustomers = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
+                if (storedCustomers) customers = JSON.parse(storedCustomers);
+                const storedProducts = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+                if (storedProducts) products = JSON.parse(storedProducts);
+                const storedOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
+                if (storedOrders) orders = JSON.parse(storedOrders);
+            } catch (e) {
+                console.warn('Error cargando datos', e);
+            }
+        }
+        loadFromStorage();
 
-            // Datos Persistentes
-            const [branches, setBranches] = useState(() => JSON.parse(localStorage.getItem('sm_branches')) || INITIAL_BRANCHES);
-            const [inventory, setInventory] = useState(() => JSON.parse(localStorage.getItem('sm_data')) || INITIAL_DATA);
-            const [history, setHistory] = useState(() => JSON.parse(localStorage.getItem('sm_history')) || []);
+        // Guardado automático
+        function saveToStorage() {
+            localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+            localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+        }
 
-            // Filtros UI
-            const [searchTerm, setSearchTerm] = useState('');
-            const [notification, setNotification] = useState(null);
-            
-            // Cola Transferencias
-            const [transferQueue, setTransferQueue] = useState([]);
-            const [transferForm, setTransferForm] = useState({ productId: '', toBranch: '', quantity: 1 });
+        // Utilidades: generar ID simple
+        function generateId() { return Date.now() + '-' + Math.random().toString(36).substr(2, 9); }
 
-            const fileInputRef = useRef(null);
+        // ----- Referencias a elementos DOM -----
+        const viewsContainer = document.getElementById('viewsContainer');
+        const navBtns = document.querySelectorAll('.nav-btn');
+        const newOrderBtn = document.getElementById('newOrderBtn');
+        const searchOrders = document.getElementById('searchOrders');
+        const statusFilter = document.getElementById('statusFilter');
+        const ordersListDiv = document.getElementById('ordersList');
+        const customersListDiv = document.getElementById('customersList');
+        const productListDiv = document.getElementById('productList');
+        const newCustomerBtn = document.getElementById('newCustomerBtn');
+        const productFile = document.getElementById('productFile');
+        const dropZone = document.getElementById('dropZone');
+        const clearProductsBtn = document.getElementById('clearProducts');
+        const exportBackupBtn = document.getElementById('exportBackup');
+        const importZone = document.getElementById('importZone');
+        const importFile = document.getElementById('importFile');
 
-            // Persistencia
-            useEffect(() => { localStorage.setItem('sm_data', JSON.stringify(inventory)); }, [inventory]);
-            useEffect(() => { localStorage.setItem('sm_branches', JSON.stringify(branches)); }, [branches]);
-            useEffect(() => { localStorage.setItem('sm_history', JSON.stringify(history)); }, [history]);
+        // Modales
+        const orderModal = document.getElementById('orderModal');
+        const customerModal = document.getElementById('customerModal');
+        const orderForm = document.getElementById('orderForm');
+        const customerForm = document.getElementById('customerForm');
+        const cancelOrderBtn = document.getElementById('cancelOrderBtn');
+        const cancelCustomerBtn = document.getElementById('cancelCustomerBtn');
+        const addProductBtn = document.getElementById('addProductBtn');
+        const productsContainer = document.getElementById('productsContainer');
+        const customerSelect = document.getElementById('customerSelect');
+        const orderDate = document.getElementById('orderDate');
+        const orderStatus = document.getElementById('orderStatus');
+        const orderComments = document.getElementById('orderComments');
+        const ticketPhoto = document.getElementById('ticketPhoto');
+        const photoPreviewContainer = document.getElementById('photoPreviewContainer');
+        const orderIdHidden = document.getElementById('orderId');
+        const modalTitle = document.getElementById('modalTitle');
 
-            // Reset página al filtrar
-            useEffect(() => { setCurrentPage(1); }, [searchTerm, currentBranch, showAllProducts]);
+        // Cliente modal fields
+        const customerIdHidden = document.getElementById('customerId');
+        const customerName = document.getElementById('customerName');
+        const customerPhone = document.getElementById('customerPhone');
+        const customerAddress = document.getElementById('customerAddress');
+        const customerEmail = document.getElementById('customerEmail');
+        const customerModalTitle = document.getElementById('customerModalTitle');
 
-            const showToast = (msg, type = 'success') => setNotification({ message: msg, type });
+        // ---- Cambio de vistas ----
+        function setActiveView(viewId) {
+            document.querySelectorAll('.views-container > div').forEach(div => div.classList.remove('active-view'));
+            document.getElementById(`view-${viewId}`).classList.add('active-view');
+            navBtns.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.nav-btn[data-view="${viewId}"]`).classList.add('active');
+            if (viewId === 'orders') renderOrders();
+            if (viewId === 'customers') renderCustomers();
+            if (viewId === 'products') renderProductsList();
+        }
 
-            // --- Lógica de Sucursales ---
-            const handleAddBranch = (name) => {
-                if (branches.includes(name)) return showToast("Esa sucursal ya existe", "error");
-                setBranches([...branches, name]);
-                setCurrentBranch(name);
-                setShowBranchModal(false);
-                showToast(`Sucursal "${name}" creada`);
+        navBtns.forEach(btn => {
+            btn.addEventListener('click', () => setActiveView(btn.dataset.view));
+        });
+
+        // ---- Renderizado de Pedidos ----
+        function renderOrders() {
+            const filterText = searchOrders ? searchOrders.value.toLowerCase() : '';
+            const filterStatus = statusFilter ? statusFilter.value : 'todos';
+            let filtered = orders.filter(order => {
+                const customer = customers.find(c => c.id === order.customerId);
+                const customerName = customer ? customer.name.toLowerCase() : '';
+                const matchesText = customerName.includes(filterText) || order.status.includes(filterText) || (order.comments && order.comments.toLowerCase().includes(filterText));
+                const matchesStatus = filterStatus === 'todos' || order.status === filterStatus;
+                return matchesText && matchesStatus;
+            });
+            if (!ordersListDiv) return;
+            if (filtered.length === 0) {
+                ordersListDiv.innerHTML = '<p class="card">No hay pedidos.</p>';
+                return;
+            }
+            let html = '<table><thead><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Productos</th><th>Comentarios</th><th>Acciones</th></tr></thead><tbody>';
+            filtered.forEach(order => {
+                const customer = customers.find(c => c.id === order.customerId) || { name: '?' };
+                const itemsText = order.items.map(i => `${i.productName} x${i.quantity}`).join(', ');
+                html += `<tr>
+                    <td>${new Date(order.date).toLocaleString()}</td>
+                    <td>${customer.name}</td>
+                    <td><span class="badge ${order.status}">${order.status}</span></td>
+                    <td>${itemsText}</td>
+                    <td>${order.comments || ''}</td>
+                    <td class="actions-cell">
+                        <button class="icon-btn edit-order" data-id="${order.id}">✏️</button>
+                        <button class="icon-btn delete-order" data-id="${order.id}">🗑️</button>
+                        ${order.ticketPhoto ? '<a href="' + order.ticketPhoto + '" target="_blank" class="icon-btn">📷</a>' : ''}
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            ordersListDiv.innerHTML = html;
+
+            // Asignar eventos
+            document.querySelectorAll('.edit-order').forEach(btn => btn.addEventListener('click', (e) => openOrderModal(e.target.dataset.id)));
+            document.querySelectorAll('.delete-order').forEach(btn => btn.addEventListener('click', (e) => deleteOrder(e.target.dataset.id)));
+        }
+
+        function deleteOrder(id) {
+            if (confirm('¿Eliminar pedido?')) {
+                orders = orders.filter(o => o.id !== id);
+                saveToStorage();
+                renderOrders();
+            }
+        }
+
+        // ---- Clientes ----
+        function renderCustomers() {
+            if (!customersListDiv) return;
+            if (customers.length === 0) {
+                customersListDiv.innerHTML = '<p class="card">No hay clientes.</p>';
+                return;
+            }
+            let html = '<table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Dirección</th><th>Email</th><th>Acciones</th></tr></thead><tbody>';
+            customers.forEach(c => {
+                html += `<tr>
+                    <td>${c.name}</td>
+                    <td>${c.phone || ''}</td>
+                    <td>${c.address || ''}</td>
+                    <td>${c.email || ''}</td>
+                    <td class="actions-cell">
+                        <button class="icon-btn edit-customer" data-id="${c.id}">✏️</button>
+                        <button class="icon-btn delete-customer" data-id="${c.id}">🗑️</button>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            customersListDiv.innerHTML = html;
+            document.querySelectorAll('.edit-customer').forEach(btn => btn.addEventListener('click', (e) => openCustomerModal(e.target.dataset.id)));
+            document.querySelectorAll('.delete-customer').forEach(btn => btn.addEventListener('click', (e) => deleteCustomer(e.target.dataset.id)));
+        }
+
+        function deleteCustomer(id) {
+            if (orders.some(o => o.customerId === id)) {
+                alert('No se puede eliminar un cliente con pedidos asociados.');
+                return;
+            }
+            if (confirm('¿Eliminar cliente?')) {
+                customers = customers.filter(c => c.id !== id);
+                saveToStorage();
+                renderCustomers();
+            }
+        }
+
+        // ---- Productos ----
+        function renderProductsList() {
+            if (!productListDiv) return;
+            if (products.length === 0) {
+                productListDiv.innerHTML = '<p>No hay productos cargados. Subí un archivo CSV o Excel.</p>';
+                return;
+            }
+            let html = '<table><thead><tr><th>Nombre</th><th>Precio (opcional)</th></tr></thead><tbody>';
+            products.forEach(p => {
+                html += `<tr><td>${p.name}</td><td>${p.price ? '$' + p.price : '-'}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            productListDiv.innerHTML = html;
+        }
+
+        // ---- Modal de Pedido ----
+        function openOrderModal(orderId = null) {
+            const isEdit = !!orderId;
+            modalTitle.innerText = isEdit ? '✏️ Editar Pedido' : '➕ Nuevo Pedido';
+            // Limpiar form
+            orderForm.reset();
+            orderIdHidden.value = '';
+            productsContainer.innerHTML = '';
+            photoPreviewContainer.innerHTML = '';
+            // Cargar clientes en select
+            customerSelect.innerHTML = '<option value="">Seleccionar cliente</option>' + customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            // Si es edición, cargar datos
+            if (isEdit) {
+                const order = orders.find(o => o.id === orderId);
+                if (!order) return;
+                orderIdHidden.value = order.id;
+                customerSelect.value = order.customerId;
+                orderDate.value = order.date;
+                orderStatus.value = order.status;
+                orderComments.value = order.comments || '';
+                // Productos
+                order.items.forEach(item => addProductRow(item));
+                if (order.ticketPhoto) {
+                    const img = document.createElement('img');
+                    img.src = order.ticketPhoto;
+                    img.className = 'photo-preview';
+                    photoPreviewContainer.appendChild(img);
+                }
+            } else {
+                // Fecha por defecto: ahora
+                const now = new Date();
+                const tzOffset = now.getTimezoneOffset() * 60000;
+                const localISOTime = new Date(now - tzOffset).toISOString().slice(0, 16);
+                orderDate.value = localISOTime;
+                // Agregar una fila de producto vacía
+                addProductRow();
+            }
+            orderModal.style.display = 'flex';
+        }
+
+        function addProductRow(item = null) {
+            const div = document.createElement('div');
+            div.className = 'product-item';
+            div.innerHTML = `
+                <input type="text" placeholder="Producto" list="productDatalist" value="${item ? item.productName : ''}" class="product-name">
+                <input type="number" placeholder="Cant" value="${item ? item.quantity : 1}" min="1" style="width:80px;" class="product-qty">
+                <input type="number" placeholder="Precio" value="${item ? item.price : ''}" min="0" step="0.01" style="width:100px;" class="product-price">
+                <button type="button" class="remove-product">✕</button>
+            `;
+            div.querySelector('.remove-product').addEventListener('click', () => div.remove());
+            productsContainer.appendChild(div);
+        }
+
+        // Cerrar modales
+        cancelOrderBtn.addEventListener('click', () => orderModal.style.display = 'none');
+        cancelCustomerBtn.addEventListener('click', () => customerModal.style.display = 'none');
+        window.addEventListener('click', (e) => {
+            if (e.target === orderModal) orderModal.style.display = 'none';
+            if (e.target === customerModal) customerModal.style.display = 'none';
+        });
+
+        // Guardar pedido
+        orderForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const customerId = customerSelect.value;
+            if (!customerId) return alert('Seleccioná un cliente');
+            const items = [];
+            document.querySelectorAll('#productsContainer .product-item').forEach(row => {
+                const nameInput = row.querySelector('.product-name');
+                const qtyInput = row.querySelector('.product-qty');
+                const priceInput = row.querySelector('.product-price');
+                if (nameInput.value.trim() !== '') {
+                    items.push({
+                        productId: null, // podríamos buscar por nombre, pero simplificamos
+                        productName: nameInput.value.trim(),
+                        quantity: parseInt(qtyInput.value) || 1,
+                        price: parseFloat(priceInput.value) || 0
+                    });
+                }
+            });
+            if (items.length === 0) return alert('Agregá al menos un producto');
+
+            // Foto
+            let ticketPhotoBase64 = '';
+            const photoImg = photoPreviewContainer.querySelector('img');
+            if (photoImg) ticketPhotoBase64 = photoImg.src;
+
+            const orderData = {
+                id: orderIdHidden.value || generateId(),
+                customerId,
+                date: orderDate.value,
+                status: orderStatus.value,
+                comments: orderComments.value,
+                items,
+                ticketPhoto: ticketPhotoBase64
             };
 
-            const handleDeleteBranch = (name) => {
-                if (branches.length <= 1) return showToast("Debe existir al menos una sucursal", "error");
-                if (!confirm(`¿Estás seguro de eliminar "${name}" y todo su stock? Esta acción no se puede deshacer.`)) return;
-                
-                const newBranches = branches.filter(b => b !== name);
-                setBranches(newBranches);
-                if (currentBranch === name) setCurrentBranch(newBranches[0]);
+            if (orderIdHidden.value) {
+                orders = orders.map(o => o.id === orderData.id ? orderData : o);
+            } else {
+                orders.push(orderData);
+            }
+            saveToStorage();
+            orderModal.style.display = 'none';
+            renderOrders();
+        });
 
-                setInventory(prev => prev.map(item => {
-                    const newStock = { ...item.stock };
-                    delete newStock[name];
-                    return { ...item, stock: newStock };
-                }));
-                showToast(`Sucursal "${name}" eliminada`);
-            };
-
-            // --- Lógica Importación Excel (.xls, .xlsx, .csv) ---
-            const handleFileUpload = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                setIsLoading(true);
-
+        // Foto preview
+        ticketPhoto.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
                 const reader = new FileReader();
-                reader.onload = (event) => {
+                reader.onload = (ev) => {
+                    photoPreviewContainer.innerHTML = `<img src="${ev.target.result}" class="photo-preview">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Agregar producto dinámico
+        addProductBtn.addEventListener('click', () => addProductRow());
+
+        // ---- Modal Cliente ----
+        function openCustomerModal(id = null) {
+            customerModalTitle.innerText = id ? '✏️ Editar Cliente' : '👤 Nuevo Cliente';
+            customerForm.reset();
+            customerIdHidden.value = '';
+            if (id) {
+                const cust = customers.find(c => c.id === id);
+                if (cust) {
+                    customerIdHidden.value = cust.id;
+                    customerName.value = cust.name;
+                    customerPhone.value = cust.phone || '';
+                    customerAddress.value = cust.address || '';
+                    customerEmail.value = cust.email || '';
+                }
+            }
+            customerModal.style.display = 'flex';
+        }
+
+        customerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const custData = {
+                id: customerIdHidden.value || generateId(),
+                name: customerName.value.trim(),
+                phone: customerPhone.value.trim(),
+                address: customerAddress.value.trim(),
+                email: customerEmail.value.trim()
+            };
+            if (!custData.name) return alert('El nombre es obligatorio');
+            if (customerIdHidden.value) {
+                customers = customers.map(c => c.id === custData.id ? custData : c);
+            } else {
+                customers.push(custData);
+            }
+            saveToStorage();
+            customerModal.style.display = 'none';
+            renderCustomers();
+        });
+
+        newCustomerBtn.addEventListener('click', () => openCustomerModal());
+        newOrderBtn.addEventListener('click', () => openOrderModal());
+
+        // Filtros de pedidos
+        if (searchOrders) searchOrders.addEventListener('input', renderOrders);
+        if (statusFilter) statusFilter.addEventListener('change', renderOrders);
+
+        // ---- Productos: carga CSV o Excel ----
+        // Función para procesar archivo (CSV o Excel) y actualizar productos
+        function handleProductFile(file) {
+            const reader = new FileReader();
+            const fileType = file.name.split('.').pop().toLowerCase();
+            
+            // Mostrar indicador de carga
+            dropZone.innerHTML = `<span class="spinner"></span> Procesando archivo...`;
+
+            if (fileType === 'csv') {
+                reader.onload = (ev) => {
                     try {
-                        const data = new Uint8Array(event.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        
-                        // Tomamos la primera hoja
-                        const firstSheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[firstSheetName];
-                        
-                        // Convertimos a JSON Array
-                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" }); // defval asegura que no haya undefined
-
-                        if (jsonData.length === 0) throw new Error("La hoja está vacía");
-
-                        // Analizamos las claves del primer objeto para mapear columnas
-                        const firstRow = jsonData[0];
-                        const headers = Object.keys(firstRow);
-                        
-                        // Buscamos columnas clave dinámicamente
-                        let keyMap = { sku: null, name: null, family: null, distributor: null, cost: null, price: null, stock: null };
-
-                        headers.forEach(h => {
-                            const lowerH = h.toLowerCase();
-                            if (lowerH.includes('sku') || lowerH.includes('codigo') || lowerH.includes('código')) keyMap.sku = h;
-                            else if (lowerH.includes('nom') || lowerH.includes('desc') || lowerH.includes('prod')) keyMap.name = h;
-                            else if (lowerH.includes('fam') || lowerH.includes('cat')) keyMap.family = h;
-                            else if (lowerH.includes('dist') || lowerH.includes('prov')) keyMap.distributor = h;
-                            else if (lowerH.includes('cost')) keyMap.cost = h;
-                            else if (lowerH.includes('prec') || lowerH.includes('vent') || lowerH.includes('pvp')) keyMap.price = h;
-                            else if (lowerH.includes('cant') || lowerH.includes('stock') || lowerH.includes('exist')) keyMap.stock = h;
-                        });
-
-                        if (!keyMap.sku) throw new Error("No se encontró una columna para SKU/Código");
-
-                        let newCount = 0;
-                        let updatedCount = 0;
-                        let nextInventory = [...inventory];
-
-                        // Procesamos los datos (Batch processing)
-                        jsonData.forEach((row, idx) => {
-                            const sku = String(row[keyMap.sku]).trim();
-                            if (!sku) return;
-
-                            const qty = keyMap.stock ? (parseInt(row[keyMap.stock]) || 0) : 0;
-                            const existingIdx = nextInventory.findIndex(p => p.sku === sku);
-
-                            if (existingIdx > -1) {
-                                updatedCount++;
-                                const prod = nextInventory[existingIdx];
-                                if (keyMap.name) prod.name = row[keyMap.name];
-                                if (keyMap.price) prod.price = parseFloat(row[keyMap.price]) || prod.price;
-                                if (keyMap.cost) prod.cost = parseFloat(row[keyMap.cost]) || prod.cost;
-                                if (keyMap.family) prod.family = row[keyMap.family] || prod.family;
-                                if (keyMap.distributor) prod.distributor = row[keyMap.distributor] || prod.distributor;
-                                prod.stock = { ...prod.stock, [currentBranch]: qty }; // Sobreescribe stock de ESTA sucursal
-                                nextInventory[existingIdx] = prod;
-                            } else {
-                                newCount++;
-                                nextInventory.push({
-                                    id: Date.now() + idx + Math.random(),
-                                    sku: sku,
-                                    name: keyMap.name ? row[keyMap.name] : 'Sin Nombre',
-                                    family: keyMap.family ? row[keyMap.family] : 'General',
-                                    distributor: keyMap.distributor ? row[keyMap.distributor] : 'General',
-                                    cost: keyMap.cost ? parseFloat(row[keyMap.cost]) : 0,
-                                    price: keyMap.price ? parseFloat(row[keyMap.price]) : 0,
-                                    stock: { [currentBranch]: qty }
-                                });
-                            }
-                        });
-
-                        setInventory(nextInventory);
-                        showToast(`Éxito: ${newCount} nuevos, ${updatedCount} actualizados.`);
+                        const newProducts = parseCSV(ev.target.result);
+                        updateProducts(newProducts);
                     } catch (err) {
-                        console.error(err);
-                        showToast("Error al procesar Excel: " + err.message, "error");
-                    } finally {
-                        setIsLoading(false);
-                        if (fileInputRef.current) fileInputRef.current.value = "";
+                        alert('Error al leer CSV: ' + err.message);
+                        resetDropZone();
+                    }
+                };
+                reader.readAsText(file);
+            } else if (fileType === 'xls' || fileType === 'xlsx') {
+                reader.onload = (ev) => {
+                    try {
+                        const data = new Uint8Array(ev.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        // Tomar la primera hoja
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        // Convertir a JSON (cabeceras en la primera fila)
+                        const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        if (rows.length < 2) throw new Error('El archivo no tiene datos');
+                        const headers = rows[0].map(h => String(h).toLowerCase().trim());
+                        const nameIdx = headers.findIndex(h => h.includes('nombre') || h === 'producto' || h === 'productos');
+                        const priceIdx = headers.findIndex(h => h.includes('precio') || h.includes('importe') || h === 'costo');
+                        if (nameIdx === -1) throw new Error('No se encontró una columna de "nombre" o "producto"');
+
+                        const newProducts = [];
+                        // Procesar filas en lotes para no bloquear (aunque 2500 no es tanto)
+                        for (let i = 1; i < rows.length; i++) {
+                            const row = rows[i];
+                            if (!row || row.length === 0) continue;
+                            const name = row[nameIdx] ? String(row[nameIdx]).trim() : '';
+                            if (!name) continue;
+                            let price = undefined;
+                            if (priceIdx !== -1 && row[priceIdx] !== undefined) {
+                                const val = row[priceIdx];
+                                // Intentar convertir a número
+                                if (typeof val === 'number') price = val;
+                                else if (typeof val === 'string') {
+                                    const num = parseFloat(val.replace(/[^\d.,-]/g, '').replace(',', '.'));
+                                    if (!isNaN(num)) price = num;
+                                }
+                            }
+                            newProducts.push({ id: generateId(), name, price });
+                        }
+                        updateProducts(newProducts);
+                    } catch (err) {
+                        alert('Error al leer Excel: ' + err.message);
+                        resetDropZone();
                     }
                 };
                 reader.readAsArrayBuffer(file);
+            } else {
+                alert('Formato no soportado. Usá CSV o Excel.');
+                resetDropZone();
+            }
+        }
+
+        function parseCSV(text) {
+            const lines = text.split('\n').filter(l => l.trim() !== '');
+            if (lines.length === 0) return [];
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            const nameIdx = headers.findIndex(h => h.includes('nombre') || h === 'producto');
+            const priceIdx = headers.findIndex(h => h.includes('precio') || h.includes('importe'));
+            if (nameIdx === -1) throw new Error('El CSV debe tener una columna "nombre" o "producto"');
+            const result = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                if (values.length <= nameIdx) continue;
+                const name = values[nameIdx];
+                if (!name) continue;
+                let price = undefined;
+                if (priceIdx !== -1 && values[priceIdx]) {
+                    const num = parseFloat(values[priceIdx].replace(/[^\d.,-]/g, '').replace(',', '.'));
+                    if (!isNaN(num)) price = num;
+                }
+                result.push({ id: generateId(), name, price });
+            }
+            return result;
+        }
+
+        function updateProducts(newProducts) {
+            products = newProducts;
+            saveToStorage();
+            renderProductsList();
+            updateProductDatalist();
+            resetDropZone('✅ Productos cargados correctamente');
+        }
+
+        function resetDropZone(message = '📂 Arrastrá o hacé clic para seleccionar archivo (CSV o Excel)') {
+            dropZone.innerHTML = message;
+        }
+
+        dropZone.addEventListener('click', () => productFile.click());
+        dropZone.addEventListener('dragover', (e) => e.preventDefault());
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) handleProductFile(file);
+        });
+        productFile.addEventListener('change', (e) => {
+            if (e.target.files[0]) handleProductFile(e.target.files[0]);
+        });
+
+        clearProductsBtn.addEventListener('click', () => {
+            if (confirm('¿Eliminar todos los productos?')) {
+                products = [];
+                saveToStorage();
+                renderProductsList();
+                updateProductDatalist();
+            }
+        });
+
+        // ---- Backup ----
+        exportBackupBtn.addEventListener('click', () => {
+            const backup = { customers, products, orders };
+            const dataStr = JSON.stringify(backup, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        importZone.addEventListener('click', () => importFile.click());
+        importZone.addEventListener('dragover', (e) => e.preventDefault());
+        importZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) handleImport(file);
+        });
+        importFile.addEventListener('change', (e) => {
+            if (e.target.files[0]) handleImport(e.target.files[0]);
+        });
+
+        function handleImport(file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (data.customers) customers = data.customers;
+                    if (data.products) products = data.products;
+                    if (data.orders) orders = data.orders;
+                    saveToStorage();
+                    alert('Restauración exitosa');
+                    // Recargar vista activa
+                    const active = document.querySelector('.nav-btn.active')?.dataset.view || 'orders';
+                    setActiveView(active);
+                    updateProductDatalist();
+                } catch (err) {
+                    alert('Archivo inválido: ' + err);
+                }
             };
+            reader.readAsText(file);
+        }
 
-            // --- Filtrado y Paginación ---
-            const filteredItems = useMemo(() => {
-                return inventory.filter(item => {
-                    const matchesSearch = (item.name + item.sku).toLowerCase().includes(searchTerm.toLowerCase());
-                    const matchesBranch = showAllProducts ? true : (item.stock[currentBranch] !== undefined);
-                    return matchesSearch && matchesBranch;
-                });
-            }, [inventory, searchTerm, currentBranch, showAllProducts]);
+        // Inicializar vistas
+        setActiveView('orders');
 
-            const paginatedItems = useMemo(() => {
-                const start = (currentPage - 1) * ITEMS_PER_PAGE;
-                return filteredItems.slice(start, start + ITEMS_PER_PAGE);
-            }, [filteredItems, currentPage]);
+        // Datalist global para productos
+        const datalist = document.createElement('datalist');
+        datalist.id = 'productDatalist';
+        document.body.appendChild(datalist);
+        function updateProductDatalist() {
+            datalist.innerHTML = products.map(p => `<option value="${p.name}">${p.price ? '$'+p.price : ''}</option>`).join('');
+        }
+        updateProductDatalist();
 
-            const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
-
-            // --- Transferencias ---
-            const addToTransferQueue = (e) => {
-                e.preventDefault();
-                const { productId, toBranch, quantity } = transferForm;
-                if (currentBranch === toBranch) return showToast("Origen y Destino iguales", "error");
-                
-                const product = inventory.find(p => p.id === parseInt(productId));
-                const available = product.stock[currentBranch] || 0;
-                
-                const pending = transferQueue
-                    .filter(t => t.productId === productId && t.fromBranch === currentBranch)
-                    .reduce((acc, t) => acc + parseInt(t.quantity), 0);
-                
-                if (available < (pending + parseInt(quantity))) return showToast("Stock insuficiente", "error");
-
-                setTransferQueue([...transferQueue, {
-                    id: Date.now(),
-                    productId,
-                    productName: product.name,
-                    sku: product.sku,
-                    fromBranch: currentBranch,
-                    toBranch,
-                    quantity: parseInt(quantity)
-                }]);
-                setTransferForm({ ...transferForm, quantity: 1 });
-            };
-
-            const executeTransfers = () => {
-                const nextInventory = [...inventory];
-                const nextHistory = [...history];
-
-                transferQueue.forEach(t => {
-                    const idx = nextInventory.findIndex(p => p.id == t.productId);
-                    if (idx > -1) {
-                        const prod = nextInventory[idx];
-                        const currentOrigin = prod.stock[t.fromBranch] || 0;
-                        const currentDest = prod.stock[t.toBranch] || 0;
-                        
-                        prod.stock = {
-                            ...prod.stock,
-                            [t.fromBranch]: currentOrigin - t.quantity,
-                            [t.toBranch]: currentDest + t.quantity
-                        };
-                        
-                        nextHistory.unshift({
-                            id: Math.random(),
-                            date: new Date().toLocaleString(),
-                            detail: `Transferido ${t.quantity} de ${prod.sku} desde ${t.fromBranch} a ${t.toBranch}`
-                        });
-                    }
-                });
-
-                setInventory(nextInventory);
-                setHistory(nextHistory);
-                setTransferQueue([]);
-                showToast("Transferencias ejecutadas");
-            };
-
-            return (
-                <div className="flex h-screen overflow-hidden">
-                    {/* Sidebar */}
-                    <div className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
-                        <div className="p-6 flex items-center gap-3">
-                            <div className="bg-blue-600 p-2 rounded-lg"><Icon name="package" /></div>
-                            <span className="font-bold text-xl tracking-tight">StockMaster</span>
-                        </div>
-                        
-                        <div className="px-4 py-2">
-                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Menú Principal</div>
-                            <button onClick={() => setActiveView('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition ${activeView === 'inventory' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
-                                <Icon name="layout-grid" size={20} /> Inventario
-                            </button>
-                            <button onClick={() => setActiveView('transfer')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition ${activeView === 'transfer' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
-                                <Icon name="arrow-right-left" size={20} /> Transferencias
-                            </button>
-                            <button onClick={() => setActiveView('history')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition ${activeView === 'history' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
-                                <Icon name="history" size={20} /> Historial
-                            </button>
-                        </div>
-
-                        <div className="mt-auto p-4 border-t border-slate-800">
-                            <div className="bg-slate-800 rounded-lg p-3">
-                                <div className="text-xs text-slate-400 mb-1">Sucursal Activa</div>
-                                <div className="font-bold truncate">{currentBranch}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Main Content */}
-                    <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
-                        
-                        {/* Header & Tabs */}
-                        <div className="bg-white border-b border-gray-200 px-8 pt-6">
-                            <div className="flex justify-between items-end">
-                                <div>
-                                    <h1 className="text-2xl font-bold text-gray-800 mb-1">
-                                        {activeView === 'inventory' && 'Gestión de Inventario'}
-                                        {activeView === 'transfer' && 'Centro de Transferencias'}
-                                        {activeView === 'history' && 'Auditoría de Movimientos'}
-                                    </h1>
-                                    <p className="text-sm text-gray-500 mb-6">
-                                        Total Productos: {inventory.length} | Mostrando: {filteredItems.length}
-                                    </p>
-                                </div>
-                                
-                                <div className="flex items-center gap-1 overflow-x-auto pb-0 hide-scrollbar">
-                                    {branches.map(b => (
-                                        <button 
-                                            key={b}
-                                            onClick={() => setCurrentBranch(b)}
-                                            className={`px-4 py-2 rounded-t-lg font-medium text-sm flex items-center gap-2 transition-all whitespace-nowrap ${currentBranch === b ? 'tab-active' : 'tab-inactive'}`}
-                                        >
-                                            <Icon name="store" size={14} /> {b}
-                                            {branches.length > 1 && activeView === 'inventory' && currentBranch === b && (
-                                                <span onClick={(e) => { e.stopPropagation(); handleDeleteBranch(b); }} className="hover:text-red-500 p-1 rounded-full hover:bg-red-50 ml-1">
-                                                    <Icon name="x" size={12} />
-                                                </span>
-                                            )}
-                                        </button>
-                                    ))}
-                                    <button onClick={() => setShowBranchModal(true)} className="px-3 py-2 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-t-lg mb-[2px]">
-                                        <Icon name="plus" size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Content Body */}
-                        <div className="flex-1 overflow-y-auto p-8">
-                            
-                            {/* --- VISTA INVENTARIO --- */}
-                            {activeView === 'inventory' && (
-                                <div className="fade-in space-y-6">
-                                    {/* Toolbar */}
-                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center flex-wrap gap-4">
-                                        <div className="flex items-center gap-4 flex-1">
-                                            <div className="relative flex-1 max-w-md">
-                                                <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Buscar SKU, Nombre..." 
-                                                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    value={searchTerm}
-                                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                                />
-                                            </div>
-                                            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={showAllProducts} 
-                                                    onChange={(e) => setShowAllProducts(e.target.checked)} 
-                                                    className="rounded text-blue-600 focus:ring-blue-500"
-                                                />
-                                                Ver catálogo global
-                                            </label>
-                                        </div>
-                                        
-                                        <div className="flex gap-3">
-                                            <button className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center gap-2 transition" onClick={() => {
-                                                 /* Exportación Simple a Excel (usando la librería) */
-                                                 const ws = XLSX.utils.json_to_sheet(filteredItems.map(i => ({
-                                                     SKU: i.sku,
-                                                     Nombre: i.name,
-                                                     Familia: i.family,
-                                                     Distribuidor: i.distributor,
-                                                     Stock_Sucursal: i.stock[currentBranch] || 0,
-                                                     Costo: i.cost,
-                                                     Precio: i.price
-                                                 })));
-                                                 const wb = XLSX.utils.book_new();
-                                                 XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-                                                 XLSX.writeFile(wb, `Inventario_${currentBranch}.xlsx`);
-                                            }}>
-                                                <Icon name="download" size={18} /> Exportar
-                                            </button>
-                                            <label className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 transition cursor-pointer shadow-sm shadow-blue-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                                <Icon name={isLoading ? "loader-2" : "upload"} size={18} className={isLoading ? "animate-spin" : ""} /> 
-                                                <span>{isLoading ? 'Procesando...' : `Cargar Excel a ${currentBranch}`}</span>
-                                                <input 
-                                                    type="file" 
-                                                    ref={fileInputRef} 
-                                                    disabled={isLoading}
-                                                    className="hidden" 
-                                                    accept=".xlsx, .xls, .csv" 
-                                                    onChange={handleFileUpload} 
-                                                />
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    {/* Tabla */}
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[400px]">
-                                        <div className="overflow-x-auto flex-1">
-                                            <table className="w-full text-left">
-                                                <thead className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider sticky top-0">
-                                                    <tr>
-                                                        <th className="px-6 py-4">Producto</th>
-                                                        <th className="px-6 py-4">Detalles</th>
-                                                        <th className="px-6 py-4 text-center bg-blue-50/50 text-blue-800">Stock en {currentBranch}</th>
-                                                        <th className="px-6 py-4 text-right">Económico</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {paginatedItems.map(item => (
-                                                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                                                            <td className="px-6 py-3">
-                                                                <div className="font-bold text-gray-900">{item.name}</div>
-                                                                <div className="text-xs text-gray-500 font-mono bg-gray-100 inline-block px-1 rounded mt-1">{item.sku}</div>
-                                                            </td>
-                                                            <td className="px-6 py-3 text-sm text-gray-600">
-                                                                <div><span className="text-gray-400">Fam:</span> {item.family}</div>
-                                                                <div><span className="text-gray-400">Dist:</span> {item.distributor}</div>
-                                                            </td>
-                                                            <td className="px-6 py-3 text-center bg-blue-50/20">
-                                                                <input 
-                                                                    type="number" 
-                                                                    className="w-20 text-center border border-gray-200 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-800"
-                                                                    value={item.stock[currentBranch] || 0}
-                                                                    onChange={(e) => {
-                                                                        const val = parseInt(e.target.value) || 0;
-                                                                        setInventory(prev => prev.map(p => p.id === item.id ? { ...p, stock: { ...p.stock, [currentBranch]: val } } : p));
-                                                                    }}
-                                                                />
-                                                            </td>
-                                                            <td className="px-6 py-3 text-right text-sm">
-                                                                <div className="text-gray-900 font-medium">${item.price}</div>
-                                                                <div className="text-xs text-gray-400">Costo: ${item.cost}</div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                    {paginatedItems.length === 0 && (
-                                                        <tr><td colSpan="4" className="text-center py-12 text-gray-400">No hay productos en esta vista</td></tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        
-                                        {/* Pagination Controls */}
-                                        {totalPages > 1 && (
-                                            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-                                                <button 
-                                                    disabled={currentPage === 1}
-                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                    className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium hover:bg-gray-100"
-                                                >
-                                                    Anterior
-                                                </button>
-                                                <span className="text-sm text-gray-600">
-                                                    Página {currentPage} de {totalPages}
-                                                </span>
-                                                <button 
-                                                    disabled={currentPage === totalPages}
-                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                                    className="px-3 py-1 rounded bg-white border border-gray-300 disabled:opacity-50 text-sm font-medium hover:bg-gray-100"
-                                                >
-                                                    Siguiente
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* --- VISTA TRANSFERENCIAS --- */}
-                            {activeView === 'transfer' && (
-                                <div className="fade-in grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                    <div className="lg:col-span-1 space-y-6">
-                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                                            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                                <Icon name="package-minus" className="text-blue-600" /> Nuevo Movimiento
-                                            </h3>
-                                            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800 mb-4 border border-blue-100">
-                                                Origen: <strong>{currentBranch}</strong>
-                                                <p className="text-xs mt-1 text-blue-600">Cambia la pestaña arriba para cambiar el origen.</p>
-                                            </div>
-                                            <form onSubmit={addToTransferQueue} className="space-y-4">
-                                                <div>
-                                                    <label className="text-xs font-bold text-gray-500 uppercase">Producto</label>
-                                                    <select 
-                                                        required
-                                                        className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        value={transferForm.productId}
-                                                        onChange={e => setTransferForm({ ...transferForm, productId: e.target.value })}
-                                                    >
-                                                        <option value="">Seleccionar...</option>
-                                                        {inventory
-                                                            .filter(i => (i.stock[currentBranch] || 0) > 0)
-                                                            .map(i => <option key={i.id} value={i.id}>{i.sku} - {i.name}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs font-bold text-gray-500 uppercase">Destino</label>
-                                                    <select 
-                                                        required
-                                                        className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        value={transferForm.toBranch}
-                                                        onChange={e => setTransferForm({ ...transferForm, toBranch: e.target.value })}
-                                                    >
-                                                        <option value="">Seleccionar sucursal...</option>
-                                                        {branches.filter(b => b !== currentBranch).map(b => <option key={b} value={b}>{b}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs font-bold text-gray-500 uppercase">Cantidad</label>
-                                                    <div className="flex items-center gap-2">
-                                                        <input 
-                                                            type="number" min="1" required
-                                                            className="flex-1 mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                                            value={transferForm.quantity}
-                                                            onChange={e => setTransferForm({ ...transferForm, quantity: e.target.value })}
-                                                        />
-                                                        {transferForm.productId && (
-                                                            <div className="text-xs text-gray-500 mt-1 px-2 bg-gray-100 rounded h-10 flex items-center">
-                                                                Max: {inventory.find(i => i.id == transferForm.productId)?.stock[currentBranch]}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <button className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition shadow-lg shadow-slate-200">
-                                                    Agregar a Cola
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </div>
-
-                                    <div className="lg:col-span-2 flex flex-col h-full">
-                                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col">
-                                            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
-                                                <h3 className="font-bold text-gray-700">Cola de Salida ({transferQueue.length})</h3>
-                                                {transferQueue.length > 0 && (
-                                                    <button onClick={executeTransfers} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg shadow flex items-center gap-2">
-                                                        <Icon name="check-check" size={16}/> Confirmar y Enviar
-                                                    </button>
-                                                )}
-                                            </div>
-                                            <div className="flex-1 overflow-auto p-0">
-                                                {transferQueue.length === 0 ? (
-                                                    <div className="flex flex-col items-center justify-center h-64 text-gray-300">
-                                                        <Icon name="clipboard-list" size={48} className="mb-2"/>
-                                                        <p>La cola de envíos está vacía</p>
-                                                    </div>
-                                                ) : (
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                                                            <tr>
-                                                                <th className="px-4 py-2">Producto</th>
-                                                                <th className="px-4 py-2">Origen</th>
-                                                                <th className="px-4 py-2">Destino</th>
-                                                                <th className="px-4 py-2 text-center">Cant</th>
-                                                                <th className="px-4 py-2"></th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y">
-                                                            {transferQueue.map(item => (
-                                                                <tr key={item.id} className="hover:bg-blue-50">
-                                                                    <td className="px-4 py-3 font-medium text-gray-900">{item.sku}</td>
-                                                                    <td className="px-4 py-3 text-red-600 font-medium">{item.fromBranch}</td>
-                                                                    <td className="px-4 py-3 text-green-600 font-medium">{item.toBranch}</td>
-                                                                    <td className="px-4 py-3 text-center font-bold text-lg">{item.quantity}</td>
-                                                                    <td className="px-4 py-3 text-right">
-                                                                        <button onClick={() => setTransferQueue(transferQueue.filter(t => t.id !== item.id))} className="text-gray-400 hover:text-red-500">
-                                                                            <Icon name="trash-2" size={16} />
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* --- VISTA HISTORIAL --- */}
-                            {activeView === 'history' && (
-                                <div className="fade-in bg-white rounded-xl shadow-sm border border-gray-200">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-gray-50 border-b">
-                                            <tr>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Fecha</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Descripción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y">
-                                            {history.map(h => (
-                                                <tr key={h.id} className="hover:bg-gray-50">
-                                                    <td className="px-6 py-4 text-sm text-gray-500 w-48">{h.date}</td>
-                                                    <td className="px-6 py-4 text-gray-800">{h.detail}</td>
-                                                </tr>
-                                            ))}
-                                            {history.length === 0 && <tr><td colSpan="2" className="text-center py-8 text-gray-400">Sin registros</td></tr>}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Modales y Toasts */}
-                    <NewBranchModal isOpen={showBranchModal} onClose={() => setShowBranchModal(false)} onConfirm={handleAddBranch} />
-                    {notification && <Toast message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+        // Exponer funciones globales necesarias (por si se necesitan en eventos)
+        window.renderOrders = renderOrders;
+        window.renderCustomers = renderCustomers;
+        window.renderProductsList = renderProductsList;
+        window.openOrderModal = openOrderModal;
+        window.openCustomerModal = openCustomerModal;
+        window.deleteOrder = deleteOrder;
+        window.deleteCustomer = deleteCustomer;
+        window.updateProductDatalist = updateProductDatalist;
+    })();
+</script>
 </body>
 </html>
